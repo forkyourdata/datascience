@@ -1,0 +1,114 @@
+---
+title: "NYC Schools Perceptions"
+author: "Yunsang Hwang"
+output: html_notebook
+---
+
+dataset download
+download_1 : https://data.world/dataquest/nyc-schools-data/workspace/file?filename=combined.csv
+download_2 : https://data.cityofnewyork.us/Education/2011-NYC-School-Survey/mnz3-dyi8
+
+
+#read library
+```{r}
+library(readr)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+```
+
+
+
+#read data
+```{r}
+combined <- read_csv("combined.csv")
+gened <- read_tsv("masterfile11_gened_final.txt")
+d75 <- read_tsv("masterfile11_d75_final.txt")
+head(combined)
+head(gened)
+head(d75)
+names(gened)
+names(d75)
+table(gened$schooltype)
+```
+
+#we need highschool type and dbn~aca_tot_11 columns
+```{r}
+simplify_gened <- gened %>% filter(schooltype =="High School") %>% 
+  select(dbn:aca_tot_11)
+simplify_d75 <- d75 %>% select(dbn:aca_tot_11)
+```
+
+
+# combined survey and survey_d75
+# renamed variable dbn to DBN 
+```{r}
+binded_gened_d75 <- simplify_gened %>% bind_rows(simplify_d75) %>% rename(DBN = "dbn")
+```
+
+
+# join binded_gened_d75 and combined. The key is DBN!
+```{r}
+all_combined <- combined %>% left_join(binded_gened_d75, by = "DBN")
+```
+
+
+# create correlation matrix and convert it to tibble 
+```{r}
+cor_matrix <- all_combined %>% select(avg_sat_score, saf_p_11 : aca_tot_11) %>% 
+  cor(use = "pairwise.complete.obs")
+tibble_matrix <- cor_matrix %>% as_tibble(rownames = "variable")
+high_cor_tibble <- tibble_matrix %>% select(variable, avg_sat_score) %>% 
+  filter(avg_sat_score > 0.25 | avg_sat_score < 0.25) ########strong correlations
+```
+
+#create scatter plots
+```{r}
+x_var <- high_cor_tibble$variable[2:5]
+y_var <- "avg_sat_score"
+create_scatter_plot <- function(x,y){
+  ggplot(data = all_combined) + aes_string(x = x, y = y) + geom_point()
+}
+map2(x_var, y_var, create_scatter_plot)
+```
+
+#reshape the data
+```{r}
+names(all_combined)
+question_score <-all_combined %>% gather(key = "survey_question", 
+                                         value = score, saf_p_11 : aca_tot_11)
+```
+
+
+```{r}
+question_response_type <- question_score %>% 
+  mutate(response_type = str_sub(survey_question, 5, 6)) %>% 
+  mutate(metric = str_sub(survey_question, 1, 3))
+
+question_response_type <- question_response_type %>% 
+  mutate(response_type = 
+           if_else(response_type == "p_", "parents", 
+                   if_else(response_type == "t_", "teacher", 
+                           if_else(response_type == "s_", "student", 
+                                   if_else(response_type == "to", "total", "NA"))))) %>% 
+  mutate(metric = 
+           if_else(metric == "aca", "academic expectations", 
+                   if_else(metric == "com", "communication", 
+                           if_else(metric == "eng", "engagement", 
+                                   if_else(metric == "saf", "safety and respect", "NA")))))
+table(question_response_type$response_type)
+```
+
+
+
+```{r}
+question_response_type <- question_response_type %>% filter(response_type != "Total")
+ggplot(data = question_response_type) + aes(x = metric , y = score, fill = response_type) +
+  geom_boxplot()
+```
+
+######parents > teacher > student 
+
+
