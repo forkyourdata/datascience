@@ -81,4 +81,4 @@ ggplot(data = formed_result_7) + aes(x = continent,y = birth_death_rate, fill = 
   geom_boxplot()
 ```
  
-The continent with the smallest difference between birth rate and death rate is Europe.
+You can see the difference between birth rate and death rate for each continent by looking at the box plot.
