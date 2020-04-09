@@ -1,3 +1,9 @@
+######## file download#########
+
+https://dsserver-prod-resources-1.s3.amazonaws.com/376/game_log.csv
+https://dsserver-prod-resources-1.s3.amazonaws.com/376/park_codes.csv
+https://dsserver-prod-resources-1.s3.amazonaws.com/376/person_codes.csv
+https://dsserver-prod-resources-1.s3.amazonaws.com/376/team_codes.csv
 library(readr)
 library(DBI)
 library(RSQLite)
