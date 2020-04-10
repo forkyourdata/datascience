@@ -13,8 +13,7 @@ survey_data_2017<- read_csv("2017-fCC-New-Coders-Survey-Data.csv")
 dim(survey_data_2017)
 head(survey_data_2017, 5)
 ```
-
-## I tried using 
+I tried using 
 prop.table (table (survey_data_2017 $ JobRoleInterest, useNA = "ifany")) * 100 
 but I was not satisfied. So I use this:
 
