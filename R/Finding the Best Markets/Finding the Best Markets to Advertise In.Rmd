@@ -1,1 +1,204 @@
+---
+title: "Finding the Best Markets to Advertise In"
+author: "Yunsang Hwang"
+output: html_document
+---
+
+read liarary and csv file
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+survey_data_2017<- read_csv("2017-fCC-New-Coders-Survey-Data.csv")
+dim(survey_data_2017)
+head(survey_data_2017, 5)
+```
+
+## I tried using 
+prop.table (table (survey_data_2017 $ JobRoleInterest, useNA = "ifany")) * 100 
+but I was not satisfied. So I use this:
+
+```{r}
+survey_data_2017 %>% 
+  group_by(JobRoleInterest) %>% 
+  summarise(freq = n() * 100 / nrow(survey_data_2017)) %>%
+  arrange(desc(freq))
+```
+
+##There are many n / a. 
+Many people are interested in web developers. 
+Many people are interested in more than one role.
+```{r}
+droped_na_Role <- tidyr::drop_na(survey_data_2017, JobRoleInterest)
+number_of_Role <- droped_na_Role %>% 
+  select(JobRoleInterest) %>% rowwise %>%
+  mutate(split_Roll = length(stringr::str_split(JobRoleInterest, ",")[[1]]))
+number_of_Role <- number_of_Role %>% 
+  ungroup() %>% 
+  group_by(split_Roll) %>%
+  summarise(freq = n() * 100 / nrow(number_of_Role))
+as.data.frame(number_of_Role)
+```
+
+
+```{r}
+ggplot(data = number_of_Role, aes(x = split_Roll, y = freq)) + 
+  geom_histogram(stat = "identity") +
+  geom_text(aes(label = round(freq, 2), y= 0.5 * freq), size = 3)
+```
+
+
+The focus of our courses is on web and mobile development. 
+How many people are interested in at least one of these two subjects?
+```{r}
+web_or_mobile <- stringr::str_detect(survey_data_2017$JobRoleInterest, 
+                         "Web Developer|Mobile Developer")
+freq<- table(web_or_mobile)
+freq <- freq * 100 / sum(freq)
+freq
+```
+
+```{r}
+df <- tibble::tibble(x = c("other interest", "web or mobile developer"), y = freq )
+ggplot(data = df, aes(x = x, y = y, fill = x)) +
+  geom_histogram(stat = "identity") +
+  geom_text(aes(label = round(y, 2), y= 0.5 * y), size = 3)
+```
+
+
+More than 44% of customers in the United States. 
+Followed by India, the United Kingdom, and Canada.
+
+```{r}
+survey_data_2017 <- survey_data_2017 %>% tidyr::drop_na(JobRoleInterest)
+survey_data_2017 %>% 
+  group_by(CountryLive) %>% 
+  summarise(freq = n(), perc = n() * 100 / nrow(survey_data_2017)) %>%
+  arrange(desc(perc))
+```
+
+
+
+```{r}
+survey_data_2017 <- survey_data_2017 %>% 
+  mutate(MonthsProgramming, replace(MonthsProgramming, MonthsProgramming == 0, 1)) %>%
+  mutate(money_per_month = round(MoneyForLearning/MonthsProgramming, 0))
+survey_data_2017 %>% summarise(number_of_na = sum(is.na(money_per_month)))
+na_droped_data <- survey_data_2017 %>% tidyr::drop_na(money_per_month)
+na_droped_data <- na_droped_data %>% tidyr::drop_na(CountryLive)
+na_droped_data %>% 
+  group_by(CountryLive) %>%
+  summarise(freq = n()) %>%
+  arrange(desc(freq))
+mean_money_per <- na_droped_data %>% filter(CountryLive == "United States of America" |
+                          CountryLive == "India" | 
+                          CountryLive == "United Kingdom"| 
+                          CountryLive == "Canada") %>%
+  group_by(CountryLive) %>%
+  summarise(mean = mean(money_per_month)) %>%
+  arrange(desc(mean))
+country_4 <- na_droped_data %>% 
+  filter(CountryLive == "United States of America" |
+                          CountryLive == "India" | 
+                          CountryLive == "United Kingdom"| 
+                          CountryLive == "Canada")
+country_4 <- country_4 %>% mutate(nrow = row_number())
+```
+
+
+```{r}
+ggplot(data = country_4, aes(x = CountryLive, y = money_per_month)) +
+  geom_boxplot() +
+  labs(title = "money per month by country", x = "Country", y = "money_per_month") +
+  theme_bw()
+```
+
+Remove outliers
+
+```{r}
+survey_data_2017 <- survey_data_2017 %>% filter(money_per_month < 20000)
+countries_mean <- survey_data_2017 %>%
+  filter(CountryLive == "United States of America"| 
+         CountryLive == "Canada" | 
+         CountryLive == "United Kingdom" |
+         CountryLive == "India") %>%
+  group_by(CountryLive) %>%
+  summarise(mean = mean(money_per_month)) %>% 
+  arrange(desc(mean))
+
+countries_mean
+```
+
+
+```{r}
+country_4 <- survey_data_2017 %>% 
+  filter(CountryLive == "United States of America"| 
+         CountryLive == "Canada" | 
+         CountryLive == "United Kingdom" |
+         CountryLive == "India") %>%
+  mutate(index = row_number())
+
+```
+
+```{r}
+ggplot(data = country_4, aes(x = CountryLive, y = money_per_month)) +
+  geom_boxplot() +
+  labs(title = "money per month by country", x = "Country", y = "money_per_month") +
+  theme_bw()
+```
+
+
+
+```{r}
+india <- country_4 %>% 
+  filter(CountryLive =="India" & money_per_month >= 3000) 
+india
+
+usa <- country_4 %>% 
+  filter(CountryLive == "United States of America" & 
+         money_per_month >= 6000)
+usa
+us_no_bootcamp <- country_4 %>%
+  filter(CountryLive == "United States of America" & 
+         money_per_month >= 6000 & AttendedBootcamp == 0)
+us_less_than_3 <- country_4 %>%
+  filter(CountryLive == "United states of America" &
+         money_per_month >= 6000 & MonthsProgramming <= 3)
+
+canada <- country_4 %>%
+  filter(CountryLive == "Canada" & money_per_month >= 4000 & MonthsProgramming <= 3)
+
+country_4 <- country_4 %>%
+  filter(!(index %in% india$index)) %>% 
+  filter(!(index %in% usa$index)) %>%
+  filter(!(index %in% us_no_bootcamp$index)) %>%
+  filter(!(index %in% us_less_than_3$index)) %>%
+  filter(!(index %in% canada$index))
+
+```
+
+
+we should advertise in is the US. 
+And Canada is the second potential market.
+```{r}
+country_4 %>% 
+  group_by(CountryLive) %>% 
+  summarise(mean = mean(money_per_month)) %>%
+  arrange(desc(mean))
+  
+ggplot(data = country_4, aes(x = CountryLive, y = money_per_month)) +
+  geom_boxplot() +
+  labs(title = "money per month by country", x = "Country", y = "money_per_month") +
+  theme_bw()
+
+country_4 %>% 
+  group_by(CountryLive) %>%
+  summarise(freq = n() * 100 / nrow(country_4)) %>%
+  arrange(desc(freq))
+country_4 %>%
+  group_by(CountryLive) %>%
+  summarise(freq = n()) %>%
+  arrange(desc(freq))
+
+```
 
