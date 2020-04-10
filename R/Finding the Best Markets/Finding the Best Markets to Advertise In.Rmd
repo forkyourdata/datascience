@@ -24,9 +24,10 @@ survey_data_2017 %>%
   arrange(desc(freq))
 ```
 
-##There are many n / a. 
+There are many n / a. 
 Many people are interested in web developers. 
 Many people are interested in more than one role.
+
 ```{r}
 droped_na_Role <- tidyr::drop_na(survey_data_2017, JobRoleInterest)
 number_of_Role <- droped_na_Role %>% 
