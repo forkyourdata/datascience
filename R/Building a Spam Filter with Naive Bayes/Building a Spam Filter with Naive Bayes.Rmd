@@ -1,1 +1,190 @@
+---
+title: "Building a Spam Filter with Naive Bayes"
+author: "Yunsang Hwang"
+date: "2020년 4월 17일"
+output: html_document
+---
+#read library and data
+```{r}
+library(readr)
+library(tidyverse)
+spam <- read.csv("SMSSpamCollection", sep = "\t", header = FALSE)
+```
+
+#Check the number of rows and columns
+#Make a column name
+```{r}
+dim(spam)
+colnames(spam) <- c("label", "sms")
+```
+
+#Divide into training and test sets
+#Spam and ham are 86,14 percent
+```{r}
+100 * prop.table(table(spam[1]))
+set.seed(1)
+train_row_num <- sample(1:nrow(spam), size = 2547, replace = FALSE)
+remain_row_num <- setdiff(1:nrow(spam), train_row_num)
+cv_num <- remain_row_num[1:318]
+test_num <- remain_row_num[319:length(remain_row_num)]
+spam_train <- spam[train_row_num,]
+spam_cv <- spam[cv_num,]
+spam_test <- spam[test_num,]
+100 * prop.table(table(spam_train[1]))
+100 * prop.table(table(spam_cv[1]))
+100 * prop.table(table(spam_test[1]))
+```
+
+# data cleaning
+```{r}
+handled_spam_train <- spam_train %>% mutate(sms = tolower(sms), 
+                                            sms = str_replace_all(sms, "[:punct:]", " "),
+                                            sms = str_replace_all(sms, "[:digit:]", " "),
+                                            sms = str_replace_all(sms, "[\u0094\u0092\n\t]", " "))
+vocabulary <- NULL
+messages <- pull(handled_spam_train, sms)
+for (m in messages) {
+  words <- str_split(m, " ")[[1]]
+  words <- words[!words %in% ""]
+  vocabulary <- c(vocabulary, words)
+}
+vocabulary <- unique(vocabulary)
+```
+
+#Calculating Parameters
+```{r}
+perc_spam <- mean(handled_spam_train$label == "spam")
+perc_ham <- mean(handled_spam_train$label == "ham")
+
+spam_messages <- handled_spam_train %>% filter(label == "spam") %>% pull("sms")
+ham_messages <- handled_spam_train %>% filter(label == "ham") %>% pull("sms")
+
+spam_words <- c()
+ham_words <- c()
+for (s in spam_messages) {
+  words <- str_split(s, " ")[[1]]
+  spam_words <- c(spam_words, words)
+}
+for (h in ham_messages) {
+  words <- str_split(h, " ")[[1]]
+  ham_words <- c(ham_words, words)
+}
+
+n_spam <- length(unique(spam_words))
+n_ham <- length(unique(ham_words))
+n_vocabulary <- length(vocabulary)
+alpha <- 1
+
+num_spam <- list()
+num_ham <- list()
+spam_probs <- list()
+ham_probs <- list()
+
+for (voca in vocabulary) {
+  num_spam[[voca]] <- 0
+  num_ham [[voca]] <- 0
+  for (s in spam_messages) {
+    words = str_split(s, " ")[[1]]
+    num_spam[[voca]] = num_spam[[voca]] + sum(words == voca)
+  }
+  
+  for (h in ham_messages) {
+    words = str_split(h, " ")[[1]]
+    num_ham[[voca]] = num_ham[[voca]] + sum(words == voca)
+  }
+  spam_probs[[voca]] <- (num_spam[[voca]] + alpha) / (n_spam + alpha * n_vocabulary)
+  ham_probs[[voca]] <- (num_ham[[voca]] + alpha) / (n_ham + alpha * n_vocabulary)
+}
+```
+
+#Classifying New Messages
+```{r}
+new_message <- function(message) {
+  spam_given_message <- perc_spam
+  ham_given_message <- perc_ham
+  clean_message <- tolower(message)
+  clean_message <- str_replace_all(clean_message, "[[:punct:]]", "")
+  clean_message <- str_replace_all(clean_message, "[[:digit:]]", " ")
+  clean_message <- str_replace_all(clean_message, "[\u0094\u0092\n\t]", " ")
+  words <- str_split(clean_message, " ")[[1]]
+  
+  for (word in words) {
+    
+    
+    wi.spam.prob <- ifelse(word %in% vocabulary, 
+                          spam_probs[[word]],
+                          1)
+    wi.ham.prob <- ifelse(word %in% vocabulary, 
+                         ham_probs[[word]],
+                         1)
+    
+    spam_given_message <- spam_given_message * wi.spam.prob
+    ham_given_message <- ham_given_message * wi.ham.prob
+  }
+  
+  result <- case_when(spam_given_message >= ham_given_message ~ "spam", 
+                      spam_given_message < ham_given_message ~ "ham")
+  
+  return(result)
+}
+train <-  handled_spam_train %>% mutate(prediction = unlist(map(sms, new_message))) %>% 
+  select(label, prediction, sms)
+confusion = table(train$label, train$prediction)
+accuracy = (confusion[1,1] + confusion[2,2]) / nrow(train)
+```
+#accuracy is 88%
+
+# hyperparameter tuning
+```{r}
+alpha_grid = seq(0.1, 1, by = 0.1)
+cv_accuracy = NULL
+
+
+for (a in alpha_grid) {
+  
+  spam_probs = list()
+  ham_probs = list()
+  for (voca in vocabulary) {
+    spam_probs[[voca]] = (num_spam[[voca]] + a) / (n_spam + a * n_vocabulary)
+    ham_probs[[voca]] = (num_ham[[voca]] + a) / (n_ham + a * n_vocabulary)
+  }
+  cv = spam_cv %>% 
+    mutate(
+      prediction = unlist(map(sms, new_message))
+    ) %>% 
+    select(label, prediction, sms)
+  
+  confusion = table(cv$label, cv$prediction)
+  acc = (confusion[1,1] + confusion[2,2]) / nrow(cv)
+  cv_accuracy = c(cv_accuracy, acc)
+}
+
+
+cv_check = tibble(
+  alpha = alpha_grid,
+  accuracy = cv_accuracy
+)
+cv_check
+```
+#increasing the alpha value causes a decrease in accuracy.
+
+#test set performance
+```{r}
+alpha_2 <-0.1
+
+for (a in alpha_grid) {
+  spam_probs <- list()
+  ham_probs <- list()
+  for (voca in vocabulary) {
+    spam_probs[[voca]] <- (num_spam[[voca]] + alpha_2) / (n_spam + alpha_2 * n_vocabulary)
+    ham_probs[[voca]] <- (num_ham[[voca]] + alpha_2) / (n_ham + alpha_2 * n_vocabulary)
+  }
+}
+
+spam_test <- spam_test %>% mutate(prediction = unlist(map(sms, new_message))) %>%
+  select(label, prediction, sms)
+confusion <- table(spam_test$label, spam_test$prediction)
+test_accuracy <- (confusion[1,1] + confusion[2,2]) / nrow(cv)
+```
+#accuracy is 94%
 
