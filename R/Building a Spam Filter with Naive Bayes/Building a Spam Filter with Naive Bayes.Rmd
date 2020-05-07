@@ -40,7 +40,7 @@ spam_test <- spam[test_num,]
 handled_spam_train <- spam_train %>% mutate(sms = tolower(sms), 
                                             sms = str_replace_all(sms, "[:punct:]", " "),
                                             sms = str_replace_all(sms, "[:digit:]", " "),
-                                            sms = str_replace_all(sms, "[\u0094\u0092\n\t]", " "))
+                                            sms = str_replace_all(sms, "[\u0094\u0092\n\t]", ""))
 vocabulary <- NULL
 messages <- pull(handled_spam_train, sms)
 for (m in messages) {
@@ -79,8 +79,11 @@ num_spam <- list()
 num_ham <- list()
 spam_probs <- list()
 ham_probs <- list()
-
+library(progress)
+pb <- progress_bar$new(total = 7232)
+length(vocabulary)
 for (voca in vocabulary) {
+  pb$tick()
   num_spam[[voca]] <- 0
   num_ham [[voca]] <- 0
   for (s in spam_messages) {
