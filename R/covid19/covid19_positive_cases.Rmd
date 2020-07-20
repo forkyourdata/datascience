@@ -1,0 +1,166 @@
+---
+title: "Investigating COVID-19 Virus Trends"
+author: "yunsanghwang"
+date: '2020 7 21 '
+output: html_document
+---
+
+This is a project about the covid19 virus.
+
+```{r}
+getwd()
+setwd("C:/Users/yunsang/downloads")
+library(readr)
+library(tibble)
+library(dplyr)
+covid_df <- read_csv("covid19.csv")
+```
+
+How much data is there?
+
+```{r}
+dim(covid_df)
+```
+```{r}
+vector_cols <- colnames(covid_df)
+vector_cols
+```
+Date: Date
+Continent_Name: Continent names
+Two_Letter_Country_Code: Country codes
+Country_Region: Country names
+Province_State: States/province names; value is All States when state/provincial level data is not available
+positive: Cumulative number of positive cases reported.
+active: Number of actively cases on that day.
+hospitalized: Cumulative number of hospitalized cases reported.
+hospitalizedCurr: Number of actively hospitalized cases on that day.
+recovered: Cumulative number of recovered cases reported.
+death: Cumulative number of deaths reported.
+total_tested: Cumulative number of tests conducted.
+daily_tested: Number of tests conducted on the day; if daily data is unavailable, daily tested is averaged across number of days in between.
+daily_positive: Number of positive cases reported on the day; if daily data is unavailable, daily positive is averaged across number of days in.
+```{r}
+head(covid_df)
+```
+
+```{r}
+glimpse(covid_df)
+```
+
+
+I'll filter the rows related to "All States" from the Province_State column and remove the Province_State column from covid_df dataframe.
+```{r}
+covid_df_all_states <- covid_df %>% filter(Province_State == "All States") %>% select(-Province_State)
+```
+
+
+
+the columns with cumulative numbers
+```{r}
+covid_df_all_states_daily <- covid_df_all_states %>% select(Date, Country_Region, 
+                                                            active, hospitalizedCurr, 
+                                                            daily_tested, daily_positive)
+```
+
+
+
+
+```{r}
+covid_df_all_states_daily_sum <- covid_df_all_states_daily %>% 
+  group_by(Country_Region) %>%
+  summarize(tested = sum(daily_tested),
+            positive = sum(daily_positive),
+            active = sum(active),
+            hospitalized = hospitalizedCurr) %>%
+  arrange(desc(tested))
+covid_df_all_states_daily_sum
+```
+
+
+
+```{r}
+covid_top_10 <- head (covid_df_all_states_daily_sum, 10) 
+covid_top_10
+```
+Identifying the Highest Positive Against Tested Cases
+```{r}
+countries <- covid_top_10$Country_Region
+tested_cases <- covid_top_10$tested
+positive_cases <- covid_top_10$positive
+active_cases <- covid_top_10$active
+hospitalized_cases <- covid_top_10$hospitalized
+```
+
+
+
+```{r}
+names(positive_cases) <- countries
+names(tested_cases) <- countries
+names(active_cases) <- countries
+names(hospitalized_cases) <- countries
+```
+
+
+
+```{r}
+sum(positive_cases)
+mean(positive_cases)
+positive_cases/sum(positive_cases)
+```
+
+
+```{r}
+positive_cases / tested_cases
+```
+
+```{r}
+positive_tested_top_3 <- c("United Kingdom" = 0.11, "United States" = 0.10, "Turkey" = 0.08)
+```
+
+```{r}
+united_kingdom <- c(0.11, 1473672, 166909, 0, 0)
+united_states <- c(0.10, 17282363, 1877179, 0, 0)
+turkey <- c(0.08, 2031192, 163941, 2980960, 0)
+```
+
+```{r}
+covid_mat <- rbind(united_kingdom, united_states, turkey)
+```
+
+
+```{r}
+colnames(covid_mat) <- c("Ratio", "tested", "positive", "active", "hospitalized")
+covid_mat
+```
+
+
+```{r}
+question <- "Which countries have had the highest number of positive cases against the number of tests?"
+answer <- c("Positive tested cases" = positive_tested_top_3)
+
+```
+
+
+
+```{r}
+datasets <- list(
+  original = covid_df,
+  allstates = covid_df_all_states,
+  daily = covid_df_all_states_daily,
+  top_10 = covid_top_10
+)
+```
+
+
+```{r}
+matrices <- list(covid_mat)
+vectors <- list(vector_cols, countries)
+```
+
+
+```{r}
+data_structure_list <- list("dataframe" = datasets, "matrix" = matrices, "vector" = vectors)
+covid_analysis_list <- list(question, answer, data_structure_list)
+covid_analysis_list[[2]]
+```
+
